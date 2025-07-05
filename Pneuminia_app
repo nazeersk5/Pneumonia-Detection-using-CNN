@@ -1,0 +1,108 @@
+# Pneumonia Detection Streamlit App - Enhanced & Fixed
+
+import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+import os
+
+# ✅ Set page config FIRST
+st.set_page_config(page_title="Pneumonia Detector", page_icon="🫁", layout="wide")
+
+# 📦 Load the trained CNN model
+MODEL_PATH = r"C:\Users\Sham prasath K\LEARNING\GUVI\Pneumonia Detection\archive\pneumonia_cnn_model.h5"
+model = load_model(MODEL_PATH)
+
+# 📊 Load model metrics if available
+metrics_path = r"C:\Users\Sham prasath K\LEARNING\GUVI\Pneumonia Detection\archive\model_metrics.npz"
+train_acc, val_acc, precision, recall, pr_auc = [], [], [], [], 0.0
+
+if os.path.exists(metrics_path):
+    data = np.load(metrics_path)
+    train_acc = data['train_acc']
+    val_acc = data['val_acc']
+    precision = data['precision']
+    recall = data['recall']
+    pr_auc = data['pr_auc']
+else:
+    st.warning("⚠️ Metrics file not found. Please retrain the model and ensure 'model_metrics.npz' is saved.")
+
+# 🚀 Title and Info
+st.title("🫁 Pneumonia Detection from Chest X-Ray")
+st.markdown("""
+This AI-powered app analyzes chest X-ray images to detect signs of **Pneumonia** using a **Convolutional Neural Network (CNN)**.
+""")
+
+# 📋 Sidebar Information
+with st.sidebar:
+    st.header("About This App")
+    st.image("https://cdn-icons-png.flaticon.com/512/3771/3771351.png", width=100)
+    st.markdown("""
+    - **Model**: CNN with TensorFlow/Keras  
+    - **Task**: Binary Classification (Normal vs Pneumonia)  
+    - **Precision-Recall AUC**: {:.2f}  
+    """.format(pr_auc))
+    st.markdown("Made with ❤️ by Sham Prasath")
+
+# 🖼️ Upload Image
+uploaded_file = st.file_uploader("📤 Upload Chest X-Ray Image", type=["jpg", "jpeg", "png"])
+
+if uploaded_file:
+    image = Image.open(uploaded_file).convert('RGB')
+    st.image(image, caption='Uploaded Chest X-Ray', use_column_width=True)
+
+    # 🔧 Preprocess image
+    image = image.resize((224, 224))
+    image_array = img_to_array(image) / 255.0
+    image_array = np.expand_dims(image_array, axis=0)
+
+    # 🔍 Predict
+    prediction = model.predict(image_array)[0][0]
+    class_name = "Pneumonia" if prediction > 0.5 else "Normal"
+    confidence = prediction if prediction > 0.5 else 1 - prediction
+
+    # 🧠 Display Prediction
+    st.subheader("Prediction Result")
+    st.write(f"**Prediction Class:** `{class_name}`")
+    st.write(f"**Confidence:** `{confidence*100:.2f}%`")
+
+    if class_name == "Pneumonia":
+        st.error("⚠️ Pneumonia Detected")
+    else:
+        st.success("✅ No Pneumonia Detected")
+
+    # 📊 Show Metrics Graphs
+    if len(train_acc) > 0:
+        st.markdown("---")
+        st.subheader("📈 Model Performance Metrics")
+
+        # Accuracy Plot
+        fig_acc, ax = plt.subplots()
+        ax.plot(train_acc, label='Training Accuracy', marker='o')
+        ax.plot(val_acc, label='Validation Accuracy', marker='x')
+        ax.set_title('Training vs Validation Accuracy')
+        ax.set_xlabel('Epochs')
+        ax.set_ylabel('Accuracy')
+        ax.legend()
+        st.pyplot(fig_acc)
+
+        # Precision-Recall Curve
+        fig_pr, ax = plt.subplots()
+        ax.plot(recall, precision, marker='.', label=f'PR AUC = {pr_auc:.2f}')
+        ax.set_title('Precision-Recall Curve')
+        ax.set_xlabel('Recall')
+        ax.set_ylabel('Precision')
+        ax.grid(True)
+        ax.legend()
+        st.pyplot(fig_pr)
+
+else:
+    # 🧾 Example Image & Use Cases
+    st.info("📤 Please upload a chest X-ray image to begin analysis.")
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Chest_Xray_PA_3-8-2010.png/800px-Chest_Xray_PA_3-8-2010.png", caption="Sample Chest X-Ray", use_column_width=True)
+    st.markdown("### Example Use Cases:")
+    st.markdown("- Remote Pneumonia Screening")
+    st.markdown("- Clinical Decision Support Tools")
+    st.markdown("- Hospital Triage Systems")
